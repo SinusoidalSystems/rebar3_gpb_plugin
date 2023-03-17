@@ -71,25 +71,12 @@ compile(AppInfo, State) ->
 clean(AppInfo, State) ->
     AppDir = rebar_app_info:dir(AppInfo),
     DepsDir = rebar_dir:deps_dir(State),
-    AppOutDir = rebar_app_info:out_dir(AppInfo),
     Opts = rebar_app_info:opts(AppInfo),
     {ok, GpbOpts} = dict:find(gpb_opts, Opts),
-    TargetErlDir = filename:join([AppOutDir,
-                                  proplists:get_value(o_erl, GpbOpts,
-                                                      ?DEFAULT_OUT_ERL_DIR)]),
-    TargetHrlDir = filename:join([AppOutDir,
-                                  proplists:get_value(o_hrl, GpbOpts,
-                                                      ?DEFAULT_OUT_HRL_DIR)]),
     ProtoFiles = find_proto_files(AppDir, DepsDir, GpbOpts),
     rebar_api:debug("found proto files: ~p", [ProtoFiles]),
-    GeneratedRootFiles =
-        lists:usort(
-          [filename:rootname(get_target(ProtoFile, GpbOpts))
-           || ProtoFile <- ProtoFiles]),
-    GeneratedErlFiles = [filename:join([TargetErlDir, F ++ ".erl"]) ||
-                            F <- GeneratedRootFiles],
-    GeneratedHrlFiles = [filename:join([TargetHrlDir, F ++ ".hrl"]) ||
-                            F <- GeneratedRootFiles],
+    GeneratedErlFiles = lists:usort([get_erl_target(ProtoFile, GpbOpts) || ProtoFile <- ProtoFiles]),
+    GeneratedHrlFiles = lists:usort([get_hrl_target(ProtoFile, GpbOpts) || ProtoFile <- ProtoFiles]),
     rebar_api:debug("deleting [~p, ~p]",
                     [GeneratedErlFiles, GeneratedHrlFiles]),
     rebar_file_utils:delete_each(GeneratedErlFiles ++ GeneratedHrlFiles).
@@ -108,7 +95,7 @@ discover(AppDir, SourceDir, Opts) ->
 
 compile([], _TargetErlDir, _GpbOpts, _Protos) -> ok;
 compile([Proto | Rest], TargetErlDir, GpbOpts, Protos) ->
-    Target = get_target(Proto, GpbOpts),
+    Target = get_erl_target(Proto, GpbOpts),
     Deps =
       case filelib:last_modified(Target) < filelib:last_modified(Proto) of
           true ->
@@ -121,7 +108,7 @@ compile([Proto | Rest], TargetErlDir, GpbOpts, Protos) ->
               [Proto, Deps0]),
             %% now touch the targets of each of the deps so they get remade again
             lists:foreach(fun(Dep) ->
-                            DepTarget = get_target(Dep, GpbOpts),
+                            DepTarget = get_erl_target(Dep, GpbOpts),
                             %% we want to force compilation in this case so we must trick
                             %% the plugin into believing that the proto is more recent than the
                             %% target, this means we need to set the last changed time on the
@@ -138,10 +125,15 @@ compile([Proto | Rest], TargetErlDir, GpbOpts, Protos) ->
       end,
     compile(Rest ++ Deps, TargetErlDir, GpbOpts, Protos).
 
-get_target(Proto, GpbOpts) ->
-    InputsOutputs = gpb_compile:list_io(Proto, GpbOpts),
-    {erl_output, Erl} = lists:keyfind(erl_output, 1, InputsOutputs),
-    Erl.
+get_erl_target(Proto, GpbOpts) ->
+  InputsOutputs = gpb_compile:list_io(Proto, GpbOpts),
+  {erl_output, Erl} = lists:keyfind(erl_output, 1, InputsOutputs),
+  Erl.
+
+get_hrl_target(Proto, GpbOpts) ->
+  InputsOutputs = gpb_compile:list_io(Proto, GpbOpts),
+  {hrl_output, Hrl} = lists:keyfind(hrl_output, 1, InputsOutputs),
+  Hrl.
 
 get_dependencies(Proto, Protos, GpbOpts) ->
     %% go through each of the protos and for each one
