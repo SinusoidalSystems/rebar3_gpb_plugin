@@ -1,4 +1,4 @@
 [{<<"gpb">>,
   {git,"https://github.com/SinusoidalSystems/gpb.git",
-       {ref,"a4ad2f41f7dc1772a01e57ba6ad61234390d0274"}},
+       {ref,"9465ceffd364e34d37211b6667d301fdb3c04600"}},
   0}].
